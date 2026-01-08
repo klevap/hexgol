@@ -8,15 +8,19 @@ class Game {
         this.renderer.setColors(Config.DEFAULT_BG_COLOR, Config.DEFAULT_OUTLINE_COLOR);
 
         this.intervalId = null;
-        this.speed = 500; 
+        
+        // ИЗМЕНЕНИЕ: Установка максимальной скорости (соответствует value=60 в HTML)
+        // 1000ms / 60 = ~16.6ms
+        this.speed = 1000 / 60; 
+        
         this.activeTribe = 0;
         this.generation = 0;
 
         this.initUI();
         this.setupEvents();
         
-        // Initial draw
-        this.randomize();
+        // ИЗМЕНЕНИЕ: Изначальная генерация Sym 6x2 вместо Random
+        this.generateSym62();
     }
 
     initUI() {
@@ -184,10 +188,15 @@ class Game {
         this.grid = new Grid(this.size);
         this.renderer.grid = this.grid;
         this.renderer.resize();
-        this.randomize();
+        // При ресайзе можно оставить рандом или тоже вызывать Sym62, 
+        // но обычно при смене размера ожидается сброс. Оставим randomize как было,
+        // или можно поменять на generateSym62() если хотите постоянства.
+        // В данном коде я оставляю randomize() для кнопки ресайза, 
+        // так как запрос был только про "открытие страницы".
+        this.randomize(); 
     }
 
-    // --- Generators Wrappers (Fix for rendering issue) ---
+    // --- Generators Wrappers ---
     
     randomize() {
         this.grid.clear();

@@ -12,7 +12,7 @@
 
     <div class="app-container">
         
-        <!-- Область канваса (теперь слева) -->
+        <!-- Область канваса -->
         <main class="main-content">
             <div class="canvas-wrapper">
                 <canvas id="board"></canvas>
@@ -22,10 +22,9 @@
             </div>
         </main>
 
-        <!-- Боковая панель настроек (теперь справа) -->
+        <!-- Боковая панель настроек -->
         <aside class="sidebar">
             <div class="logo-area">
-                <!-- Inline SVG Logo for visual -->
                 <svg width="40" height="40" viewBox="0 0 100 100">
                     <polygon points="50 5, 95 27.5, 95 72.5, 50 95, 5 72.5, 5 27.5" fill="none" stroke="#2ecc71" stroke-width="8"/>
                     <circle cx="50" cy="50" r="15" fill="#2ecc71"/>
@@ -51,7 +50,8 @@
 
             <div class="control-group">
                 <label>Speed</label>
-                <input type="range" id="speed-range" min="1" max="60" value="30">
+                <!-- ИЗМЕНЕНИЕ: value установлено на 60 (максимум) -->
+                <input type="range" id="speed-range" min="1" max="60" value="60">
             </div>
 
             <div class="control-group">
@@ -59,9 +59,10 @@
                 <select id="size-select">
                     <option value="13">13x13</option>
                     <option value="25">25x25</option>
-                    <option value="53">53x53</option>
+                    <!-- ИЗМЕНЕНИЕ: selected перенесен на 53 -->
+                    <option value="53" selected>53x53</option>
                     <option value="77">77x77</option>
-                    <option value="101" selected>101x101</option>
+                    <option value="101">101x101</option>
                 </select>
             </div>
 

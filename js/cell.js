@@ -8,100 +8,112 @@ class Cell {
         this.tribe = 0;   
         this.age = 0;
         
-        // Ссылка на соседей (заполняется в Grid)
         this.neighbors = [];
 
-        // Следующее состояние (плоская структура вместо объекта)
         this.nextAlive = 0;
         this.nextTribe = 0;
         this.nextAge = 0;
+
+        // Кэш для сумм: [Blue, Red, Green, Purple, SpecialSum]
+        this.inputSums = [0, 0, 0, 0, 0];
     }
 
-    // Подготовка к следующему шагу (расчет состояния)
-    // neighbors теперь берется из this.neighbors, аргумент не нужен, 
-    // но оставим сигнатуру или будем использовать this.neighbors напрямую
     calcNextState() {
         if (!this.isValid) return;
 
-        // ОПТИМИЗАЦИЯ: Вместо объекта counts используем переменные
-        let livingBlue = 0;
-        let livingRed = 0;
-        let livingGreen = 0;
-        let livingPurple = 0;
+        // 1. Сброс сумм
+        this.inputSums.fill(0);
         
-        // Проход по предрасчитанным соседям
-        // Используем for loop для скорости (быстрее чем for..of в некоторых движках, но for..of читаемее)
         const neighbors = this.neighbors;
         const len = neighbors.length;
+
+        // 2. Расчет стандартных сумм и SpecialSum
         for (let i = 0; i < len; i++) {
             const n = neighbors[i];
             if (n.isAlive) {
-                // Сила соседа = его возраст
                 const val = n.age;
-                // switch быстрее доступа к объекту по ключу
-                switch (n.tribe) {
-                    case 0: livingBlue += val; break;
-                    case 1: livingRed += val; break;
-                    case 2: livingGreen += val; break;
-                    case 3: livingPurple += val; break;
+                
+                // Стандартная сумма по племенам
+                this.inputSums[n.tribe] += val;
+
+                // Special Sum Logic
+                // Находим соседей соседа в кольце (циклически)
+                // i - индекс текущего соседа в массиве neighbors
+                // (i - 1 + len) % len - индекс соседа слева
+                // (i + 1) % len - индекс соседа справа
+                
+                const leftIdx = (i - 1 + len) % len;
+                const rightIdx = (i + 1) % len;
+                
+                const leftN = neighbors[leftIdx];
+                const rightN = neighbors[rightIdx];
+
+                // Проверяем цвета (племена)
+                // Важно: если сосед мертв, его tribe может быть старым, 
+                // но в контексте задачи обычно сравнивают tribe живых или просто tribe.
+                // Будем считать tribe даже у мертвых (свойство клетки), 
+                // либо 0, если считать мертвых нейтральными. 
+                // В оригинале tribe сохраняется при смерти.
+                
+                const myTribe = n.tribe;
+                const leftTribe = leftN.tribe; // Берем tribe даже если isAlive=0
+                const rightTribe = rightN.tribe;
+
+                if (leftTribe !== myTribe && rightTribe !== myTribe) {
+                    // Оба соседа другого цвета -> Плюсуем
+                    this.inputSums[4] += val;
+                } else if (leftTribe === myTribe && rightTribe === myTribe) {
+                    // Оба соседа такого же цвета -> Минусуем
+                    this.inputSums[4] -= val;
                 }
+                // Иначе (один такой же, один другой) -> 0 (не меняем сумму)
             }
         }
 
-        // Логика выживания (из оригинала)
-        let willDie = false;
+        // --- ЛОГИКА ВЫЖИВАНИЯ ---
         if (this.isAlive) {
-            if (this.tribe === 0) { // Blue
-                if (livingBlue < 7 || livingBlue + 2 * livingRed > 29) willDie = true;
-            } else if (this.tribe === 1) { // Red
-                if (livingRed < 11 || livingBlue + livingRed > 37) willDie = true;
-            } else if (this.tribe === 2) { // Green
-                if (livingBlue + livingRed + livingGreen < 22 || livingGreen > 24) willDie = true;
-            } else if (this.tribe === 3) { // Purple
-                if (livingPurple < 11 || livingPurple > 34) willDie = true;
-            }
+            const config = Config.TRIBES[this.tribe].survival;
             
-            if (willDie) {
-                this.nextAlive = -1; // Маркер умирания
-                this.nextTribe = this.tribe;
-                this.nextAge = this.age; 
-            } else {
+            // Проверяем структуру: (G1R1 И G1R2) ИЛИ (G2R1 И G2R2)
+            const group1 = this.checkRule(config.group1[0]) && this.checkRule(config.group1[1]);
+            const group2 = this.checkRule(config.group2[0]) && this.checkRule(config.group2[1]);
+
+            if (group1 || group2) {
                 this.nextAlive = 1;
                 this.nextTribe = this.tribe;
-                this.nextAge = this.age + 1; // Старение
+                this.nextAge = this.age + 1;
+            } else {
+                this.nextAlive = -1; // Умирает
+                this.nextTribe = this.tribe;
+                this.nextAge = this.age;
             }
         } 
-        // Логика рождения (из оригинала)
+        // --- ЛОГИКА РОЖДЕНИЯ ---
         else {
-            let newTribe = -1;
+            let bestCandidate = -1;
+            let maxPriority = -1;
 
-            // Условия рождения
-            let livingNewBlue = (livingBlue >= 20 && livingBlue <= 22);
-            let livingNewRed = (livingRed === 20);
-            let livingNewPurple = (livingPurple >= 21 && livingPurple <= 23);
-            let livingNewGreen = (livingGreen === 20 || livingGreen === 21);
-
-            // Purple priority
-            if (livingNewPurple) {
-                newTribe = 3;
-            } else if (livingNewBlue && !livingNewRed) {
-                newTribe = 0;
-            } else if (!livingNewBlue && livingNewRed) {
-                newTribe = 1;
-            } else {
-                // Green logic complex check
-                let blueRange = (livingBlue >= 14 && livingBlue <= 19);
-                let redRange = (livingRed >= 14 && livingRed <= 19);
+            for (let tId = 0; tId < Config.TRIBES.length; tId++) {
+                const tribeConf = Config.TRIBES[tId];
                 
-                if ((livingNewGreen && (livingBlue + livingRed > 14)) || (blueRange && redRange)) {
-                    newTribe = 2;
+                if (tribeConf.priority <= maxPriority) continue;
+
+                const config = tribeConf.birth;
+                
+                // Проверяем структуру: (G1R1 И G1R2) ИЛИ (G2R1 И G2R2)
+                const group1 = this.checkRule(config.group1[0]) && this.checkRule(config.group1[1]);
+                const group2 = this.checkRule(config.group2[0]) && this.checkRule(config.group2[1]);
+
+                if (group1 || group2) {
+                    bestCandidate = tId;
+                    maxPriority = tribeConf.priority;
                 }
             }
 
-            if (newTribe !== -1) {
+            if (bestCandidate !== -1) {
                 this.nextAlive = 1;
-                this.nextTribe = newTribe;
-                this.nextAge = 1; // Новорожденный
+                this.nextTribe = bestCandidate;
+                this.nextAge = 1;
             } else {
                 this.nextAlive = 0;
                 this.nextAge = 0;
@@ -109,20 +121,29 @@ class Cell {
         }
     }
 
-    // Применение следующего состояния
+    // Вспомогательный метод проверки одного правила
+    checkRule(rule) {
+        let sum = 0;
+        // Скалярное произведение весов на входные суммы
+        // weights имеет длину 5: [Blue, Red, Green, Purple, SpecialSum]
+        for (let i = 0; i < 5; i++) {
+            sum += rule.weights[i] * this.inputSums[i];
+        }
+        return sum >= rule.min && sum <= rule.max;
+    }
+
     applyNextState() {
         if (!this.isValid) return;
 
-        // Обработка умирания (плавное затухание возраста)
         if (this.nextAlive === -1) {
-            if (this.tribe === 3) this.age -= 3;
-            else this.age -= 4;
+            const decay = Config.TRIBES[this.tribe].decay || 4;
+            this.age -= decay;
             
             if (this.age <= 0) {
                 this.isAlive = 0;
                 this.age = 0;
             } else {
-                this.isAlive = 1; // Все еще виден, но угасает
+                this.isAlive = 1; 
             }
         } else {
             this.isAlive = this.nextAlive;
@@ -130,6 +151,6 @@ class Cell {
             this.age = this.nextAge;
         }
 
-        if (this.age > 20) this.age = 20; // Cap age
+        if (this.age > Config.MAX_AGE) this.age = Config.MAX_AGE;
     }
 }

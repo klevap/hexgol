@@ -27,7 +27,7 @@ class Grid {
             this.cells.push(rowArr);
         }
 
-        // 2. ОПТИМИЗАЦИЯ: Предрасчет соседей (линковка)
+        // 2. Предрасчет соседей (линковка)
         this.linkNeighbors();
     }
 
@@ -38,7 +38,8 @@ class Grid {
         return null;
     }
 
-    // Новый метод: связывает клетки друг с другом один раз
+    // Связывает клетки друг с другом в строгом порядке ПО ЧАСОВОЙ СТРЕЛКЕ
+    // Это важно для расчета "Специальной суммы" (левый/правый сосед)
     linkNeighbors() {
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
@@ -47,20 +48,30 @@ class Grid {
 
                 let neighbors = [];
                 
-                // Кандидаты (offset coordinates)
-                let candidates = [
-                    {r: row, c: col - 1},     // Left
-                    {r: row, c: col + 1},     // Right
-                    {r: row - 1, c: col},     // Up
-                    {r: row + 1, c: col}      // Down
-                ];
+                // Определение координат соседей по часовой стрелке, начиная с Top-Left
+                // Координаты зависят от четности строки (Offset coordinates)
+                let candidates = [];
 
                 if (row % 2 === 0) {
-                    candidates.push({r: row - 1, c: col - 1});
-                    candidates.push({r: row + 1, c: col - 1});
+                    // Четная строка
+                    candidates = [
+                        {r: row - 1, c: col - 1}, // Top-Left
+                        {r: row - 1, c: col},     // Top-Right
+                        {r: row,     c: col + 1}, // Right
+                        {r: row + 1, c: col},     // Bottom-Right
+                        {r: row + 1, c: col - 1}, // Bottom-Left
+                        {r: row,     c: col - 1}  // Left
+                    ];
                 } else {
-                    candidates.push({r: row - 1, c: col + 1});
-                    candidates.push({r: row + 1, c: col + 1});
+                    // Нечетная строка
+                    candidates = [
+                        {r: row - 1, c: col},     // Top-Left
+                        {r: row - 1, c: col + 1}, // Top-Right
+                        {r: row,     c: col + 1}, // Right
+                        {r: row + 1, c: col + 1}, // Bottom-Right
+                        {r: row + 1, c: col},     // Bottom-Left
+                        {r: row,     c: col - 1}  // Left
+                    ];
                 }
 
                 for (let cand of candidates) {
@@ -84,23 +95,16 @@ class Grid {
         }
     }
 
-    // Метод getNeighbors больше не нужен для update, но оставим для совместимости если нужно
-    getNeighbors(cell) {
-        return cell.neighbors;
-    }
-
     update() {
-        // 1. Рассчитываем следующее состояние
-        // Используем прямой доступ к массиву для скорости
         const size = this.size;
         const cells = this.cells;
         
+        // 1. Рассчитываем следующее состояние
         for (let row = 0; row < size; row++) {
             const rowArr = cells[row];
             for (let col = 0; col < size; col++) {
                 const cell = rowArr[col];
                 if (cell.isValid) {
-                    // Соседи уже внутри cell
                     cell.calcNextState();
                 }
             }
@@ -132,7 +136,7 @@ class Grid {
     }
 
     // =====================
-    // ГЕНЕРАТОРЫ СИММЕТРИЙ (Без изменений логики)
+    // ГЕНЕРАТОРЫ СИММЕТРИЙ
     // =====================
 
     randomizeSym2() {

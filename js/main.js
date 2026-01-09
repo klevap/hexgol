@@ -6,12 +6,9 @@ class Game {
         
         this.renderer.setColors(Config.DEFAULT_BG_COLOR, Config.DEFAULT_OUTLINE_COLOR);
 
-        // Игровой цикл
         this.rafId = null;
         this.lastTs = 0;
         this.accumulator = 0;
-        
-        // Скорость: 60 тиков в секунду макс
         this.speed = 1000 / 60; 
         
         this.activeTribe = 0;
@@ -20,6 +17,7 @@ class Game {
         this.initUI();
         this.setupEvents();
         
+        // Генерируем начальное состояние
         this.generateSym62();
     }
 
@@ -40,14 +38,13 @@ class Game {
         document.getElementById('btn-next').onclick = () => this.step();
         document.getElementById('btn-clear').onclick = () => this.clear();
 
-        // Настройки
         document.getElementById('speed-range').oninput = (e) => {
             let val = parseInt(e.target.value);
             this.speed = 1000 / val;
         };
 
         document.getElementById('size-select').onchange = (e) => {
-            this.resize(parseInt(e.target.value));
+            this.resizeGrid(parseInt(e.target.value));
         };
 
         document.getElementById('tribe-select').onchange = (e) => {
@@ -58,7 +55,6 @@ class Game {
             this.setTheme(e.target.value);
         };
 
-        // Цвета
         document.getElementById('col-bg').oninput = (e) => {
             this.renderer.setColors(e.target.value, this.renderer.colors.outline);
             this.renderer.draw();
@@ -69,33 +65,25 @@ class Game {
             this.renderer.draw();
         };
 
-        // Управление с клавиатуры
         document.addEventListener('keydown', (e) => {
-            // Пробел: Старт / Пауза
             if (e.code === 'Space') {
-                e.preventDefault(); // Предотвращаем прокрутку страницы
-                if (this.rafId) {
-                    this.pause();
-                } else {
-                    this.play();
-                }
+                e.preventDefault();
+                if (this.rafId) this.pause(); else this.play();
             }
-            // Enter: Один шаг (только если на паузе)
             else if (e.code === 'Enter') {
-                if (!this.rafId) {
-                    this.step();
-                }
+                if (!this.rafId) this.step();
             }
         });
 
-        // Рисование на канвасе
+        // --- ВЗАИМОДЕЙСТВИЕ С КАНВАСОМ (МЫШЬ + TOUCH) ---
         const canvas = document.getElementById('board');
-        const handleInput = (e) => {
+        
+        // Общая функция обработки ввода
+        const handleInput = (clientX, clientY) => {
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
+            // Учитываем масштаб канваса (хотя теперь он 1:1, но на всякий случай)
+            const x = (clientX - rect.left) * (canvas.width / rect.width);
+            const y = (clientY - rect.top) * (canvas.height / rect.height);
 
             const coords = this.renderer.getGridCoordinate(x, y);
             const cell = this.grid.getCell(coords.row, coords.col);
@@ -108,11 +96,38 @@ class Game {
             }
         };
 
+        // Мышь
         let isDrawing = false;
-        canvas.onmousedown = (e) => { isDrawing = true; handleInput(e); };
-        canvas.onmousemove = (e) => { if(isDrawing) handleInput(e); };
+        canvas.onmousedown = (e) => { isDrawing = true; handleInput(e.clientX, e.clientY); };
+        canvas.onmousemove = (e) => { if(isDrawing) handleInput(e.clientX, e.clientY); };
         canvas.onmouseup = () => { isDrawing = false; };
         canvas.onmouseleave = () => { isDrawing = false; };
+
+        // --- TOUCH EVENTS (Для мобильных) ---
+        canvas.addEventListener('touchstart', (e) => {
+            // Предотвращаем скролл страницы при касании канваса
+            if(e.cancelable) e.preventDefault(); 
+            isDrawing = true;
+            handleInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if(e.cancelable) e.preventDefault();
+            if(isDrawing) handleInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => { isDrawing = false; });
+
+        // --- РЕСАЙЗ ОКНА ---
+        // Если пользователь повернул телефон или изменил размер окна
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                // Пересчитываем только визуальную часть, не сбрасывая игру
+                this.renderer.resize();
+            }, 100);
+        });
     }
 
     setTheme(themeName) {
@@ -162,14 +177,10 @@ class Game {
         this.renderer.draw();
     }
 
-    // --- Game Control (Optimized Loop) ---
-
     play() {
         if (this.rafId) return;
-        
         document.getElementById('btn-play').classList.add('hidden');
         document.getElementById('btn-pause').classList.remove('hidden');
-
         this.lastTs = performance.now();
         this.accumulator = 0;
 
@@ -177,26 +188,20 @@ class Game {
             const dt = ts - this.lastTs;
             this.lastTs = ts;
             this.accumulator += dt;
-
             if (this.accumulator > 1000) this.accumulator = 1000;
-
             let updated = false;
-            
             while (this.accumulator >= this.speed) {
                 this.grid.update();
                 this.generation++;
                 this.accumulator -= this.speed;
                 updated = true;
             }
-
             if (updated) {
                 document.getElementById('stats-display').innerText = `Generation: ${this.generation}`;
                 this.renderer.draw();
             }
-
             this.rafId = requestAnimationFrame(loop);
         };
-
         this.rafId = requestAnimationFrame(loop);
     }
 
@@ -222,19 +227,18 @@ class Game {
         this.renderer.draw();
     }
 
-    resize(newSize) {
+    // Переименовал метод, чтобы не путать с визуальным ресайзом
+    resizeGrid(newSize) {
         this.pause();
         this.size = newSize;
         this.grid = new Grid(this.size);
         
         this.renderer.grid = this.grid;
-        this.renderer.resize();
+        this.renderer.resize(); // Пересчитываем геометрию под новую сетку
         
         this.randomize(); 
     }
 
-    // --- Generators Wrappers ---
-    
     randomize() {
         this.grid.clear();
         for (let row of this.grid.cells) {

@@ -7,10 +7,9 @@ const Config = {
         3: { name: "Purple", color: [180, 0, 180] }
     },
     
-    // Настройки отрисовки по умолчанию (Темная тема)
+    // Настройки отрисовки по умолчанию
     DEFAULT_SIZE: 53,
-    CANVAS_WIDTH: 800,
-    CANVAS_HEIGHT: 700,
+    // CANVAS_WIDTH и HEIGHT удалены, они теперь динамические
     DEFAULT_BG_COLOR: '#000000',
     DEFAULT_OUTLINE_COLOR: '#444444'
 };

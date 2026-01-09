@@ -34,14 +34,15 @@ class Game {
     }
 
     setupEvents() {
+        // Кнопки UI
         document.getElementById('btn-play').onclick = () => this.play();
         document.getElementById('btn-pause').onclick = () => this.pause();
         document.getElementById('btn-next').onclick = () => this.step();
         document.getElementById('btn-clear').onclick = () => this.clear();
 
+        // Настройки
         document.getElementById('speed-range').oninput = (e) => {
             let val = parseInt(e.target.value);
-            // Чем больше значение, тем меньше интервал (быстрее)
             this.speed = 1000 / val;
         };
 
@@ -57,6 +58,7 @@ class Game {
             this.setTheme(e.target.value);
         };
 
+        // Цвета
         document.getElementById('col-bg').oninput = (e) => {
             this.renderer.setColors(e.target.value, this.renderer.colors.outline);
             this.renderer.draw();
@@ -67,6 +69,26 @@ class Game {
             this.renderer.draw();
         };
 
+        // Управление с клавиатуры
+        document.addEventListener('keydown', (e) => {
+            // Пробел: Старт / Пауза
+            if (e.code === 'Space') {
+                e.preventDefault(); // Предотвращаем прокрутку страницы
+                if (this.rafId) {
+                    this.pause();
+                } else {
+                    this.play();
+                }
+            }
+            // Enter: Один шаг (только если на паузе)
+            else if (e.code === 'Enter') {
+                if (!this.rafId) {
+                    this.step();
+                }
+            }
+        });
+
+        // Рисование на канвасе
         const canvas = document.getElementById('board');
         const handleInput = (e) => {
             const rect = canvas.getBoundingClientRect();
@@ -156,12 +178,10 @@ class Game {
             this.lastTs = ts;
             this.accumulator += dt;
 
-            // Защита от "спирали смерти" (если вкладка была неактивна долго)
             if (this.accumulator > 1000) this.accumulator = 1000;
 
             let updated = false;
             
-            // Выполняем шаги симуляции, пока накопилось время
             while (this.accumulator >= this.speed) {
                 this.grid.update();
                 this.generation++;
@@ -207,7 +227,6 @@ class Game {
         this.size = newSize;
         this.grid = new Grid(this.size);
         
-        // Обновляем ссылку на grid в рендерере и пересчитываем всё
         this.renderer.grid = this.grid;
         this.renderer.resize();
         

@@ -5,24 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hex Life</title>
     <link rel="stylesheet" href="style.css">
-    <!-- SVG Logo as Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><polygon points=%2250 5, 95 27.5, 95 72.5, 50 95, 5 72.5, 5 27.5%22 fill=%22none%22 stroke=%22%2300ff00%22 stroke-width=%225%22/><circle cx=%2250%22 cy=%2250%22 r=%2220%22 fill=%22%2300ff00%22/></svg>">
 </head>
 <body>
 
     <div class="app-container">
         
-        <!-- Область канваса -->
         <main class="main-content">
             <div class="canvas-wrapper">
-                <canvas id="board"></canvas>
+                <!-- СЛОИ: Снизу сетка, сверху клетки -->
+                <canvas id="grid-layer"></canvas>
+                <canvas id="cells-layer"></canvas>
             </div>
             <div class="stats">
-                <span id="stats-display">Generation: 0</span>
+                <div id="stats-gen">Generation: 0</div>
+                <div id="stats-perf" style="font-size: 11px; color: #aaa; margin-top: 4px;">FPS: 0 | TPS: 0</div>
             </div>
         </main>
 
-        <!-- Боковая панель настроек -->
         <aside class="sidebar">
             <div class="logo-area">
                 <svg width="40" height="40" viewBox="0 0 100 100">
@@ -101,7 +101,6 @@
 
     </div>
 
-    <!-- Подключение скриптов -->
     <script src="js/config.js"></script>
     <script src="js/cell.js"></script>
     <script src="js/grid.js"></script>

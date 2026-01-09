@@ -1,5 +1,4 @@
 :root {
-    /* Dark Theme Defaults */
     --bg-color: #121212;
     --sidebar-bg: #1e1e1e;
     --primary-color: #2ecc71;
@@ -18,19 +17,18 @@ html, body {
     color: var(--text-color);
     height: 100%;
     width: 100%;
-    overflow: hidden; /* Блокируем скролл всей страницы */
+    overflow: hidden;
 }
 
 .app-container {
     display: flex;
     height: 100%;
     width: 100%;
-    flex-direction: row; /* Десктоп: слева поле, справа меню */
+    flex-direction: row;
 }
 
-/* --- Main Content (Canvas Area) --- */
 .main-content {
-    flex: 1; /* Занимает всё свободное место по ширине */
+    flex: 1;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -40,25 +38,33 @@ html, body {
 }
 
 .canvas-wrapper {
-    /* Ключевые стили для растягивания на весь экран */
     flex: 1; 
     width: 100%;
     height: 100%;
-    min-height: 0; /* Важно для Flexbox */
-    
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    
+    min-height: 0;
+    position: relative; /* Важно для абсолютного позиционирования канвасов */
     background: #000;
-    /* Легкая внутренняя тень для эстетики */
     box-shadow: inset 0 0 20px rgba(0,0,0,0.5); 
     overflow: hidden;
 }
 
+/* Стили для слоев канваса */
 canvas {
     display: block;
-    /* Размеры управляются через JS, CSS не должен мешать */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#grid-layer {
+    z-index: 0; /* Нижний слой (фон + сетка) */
+}
+
+#cells-layer {
+    z-index: 1; /* Верхний слой (клетки) */
+    pointer-events: none; /* Чтобы события мыши проходили сквозь него (опционально, но полезно) */
 }
 
 .stats {
@@ -70,13 +76,12 @@ canvas {
     border-radius: 6px;
     font-size: 14px;
     color: #ecf0f1;
-    pointer-events: none; /* Чтобы клики проходили сквозь статистику */
+    pointer-events: none;
     border: 1px solid rgba(255,255,255,0.1);
     backdrop-filter: blur(4px);
     z-index: 5;
 }
 
-/* --- Sidebar (Desktop) --- */
 .sidebar {
     width: 320px;
     min-width: 300px;
@@ -89,8 +94,6 @@ canvas {
     gap: 15px;
     z-index: 10;
     border-left: 1px solid var(--border-color);
-    
-    /* Стилизация скроллбара */
     scrollbar-width: thin;
     scrollbar-color: var(--border-color) var(--sidebar-bg);
 }
@@ -130,7 +133,6 @@ canvas {
     letter-spacing: 0.5px;
 }
 
-/* --- Buttons & Inputs --- */
 button {
     padding: 12px;
     border: none;
@@ -188,14 +190,13 @@ input[type="color"] {
 
 .hidden { display: none !important; }
 
-/* --- MOBILE STYLES --- */
 @media (max-width: 768px) {
     .app-container {
-        flex-direction: column; /* Вертикальное расположение */
+        flex-direction: column;
     }
 
     .main-content {
-        flex: 0 0 60vh; /* Канвас занимает 60% высоты экрана */
+        flex: 0 0 60vh;
         height: 60vh;
         border-bottom: 1px solid var(--border-color);
     }
@@ -206,7 +207,7 @@ input[type="color"] {
 
     .sidebar {
         width: 100%;
-        flex: 1; /* Остальное место под настройки */
+        flex: 1;
         border-left: none;
         border-top: 1px solid var(--border-color);
         padding: 15px;
@@ -217,7 +218,6 @@ input[type="color"] {
 
     button { padding: 14px; }
     
-    /* Закрепляем кнопки Play/Pause сверху списка настроек */
     .control-group:first-of-type {
         position: sticky;
         top: -15px;

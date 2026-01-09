@@ -1,11 +1,12 @@
 class Renderer {
-    constructor(canvasId, grid) {
-        this.canvas = document.getElementById(canvasId);
-        this.ctx = this.canvas.getContext('2d', { alpha: false });
-        
-        // Offscreen canvas для статичной сетки
-        this.outlineCanvas = document.createElement('canvas');
-        this.outlineCtx = this.outlineCanvas.getContext('2d', { alpha: false });
+    constructor(gridCanvasId, cellsCanvasId, grid) {
+        // Слой 0: Фон и сетка (статичный)
+        this.gridCanvas = document.getElementById(gridCanvasId);
+        this.gridCtx = this.gridCanvas.getContext('2d', { alpha: false }); // alpha: false для скорости фона
+
+        // Слой 1: Клетки (динамичный)
+        this.cellsCanvas = document.getElementById(cellsCanvasId);
+        this.cellsCtx = this.cellsCanvas.getContext('2d', { alpha: true }); // alpha: true для прозрачности
 
         this.grid = grid;
         
@@ -22,64 +23,51 @@ class Renderer {
     }
 
     resize() {
-        const wrapper = this.canvas.parentElement;
+        const wrapper = this.gridCanvas.parentElement;
         
-        // Получаем реальные размеры контейнера
         let availableWidth = wrapper.clientWidth;
         let availableHeight = wrapper.clientHeight;
 
-        // Защита: если размеры 0 (например, при первой загрузке), пробуем чуть позже
         if (availableWidth === 0 || availableHeight === 0) {
             setTimeout(() => this.resize(), 50);
             return;
         }
 
-        // Устанавливаем размеры канваса равными контейнеру
-        this.canvas.width = availableWidth;
-        this.canvas.height = availableHeight;
+        // Ресайзим оба канваса
+        this.gridCanvas.width = availableWidth;
+        this.gridCanvas.height = availableHeight;
         
-        this.outlineCanvas.width = availableWidth;
-        this.outlineCanvas.height = availableHeight;
+        this.cellsCanvas.width = availableWidth;
+        this.cellsCanvas.height = availableHeight;
         
-        // Минимальный отступ от краев (padding), чтобы сетка не прилипала
         const padding = 10; 
-        
         let gridWidth = this.grid.size;
         
-        // 1. Считаем размер стороны гекса (sideLength), если ограничиваем по ширине
-        // Ширина сетки ≈ (cols + 0.5) * sqrt(3) * side
         const sideLengthByWidth = (availableWidth - padding * 2) / (gridWidth + 0.5) / Math.sqrt(3);
-        
-        // 2. Считаем размер стороны, если ограничиваем по высоте
-        // Высота сетки ≈ (rows * 1.5 + 0.5) * side
         const sideLengthByHeight = (availableHeight - padding * 2) / (gridWidth * 1.5 + 0.5);
 
-        // Выбираем меньшее значение, чтобы сетка влезла целиком
         this.sideLength = Math.min(sideLengthByWidth, sideLengthByHeight);
-        
-        // Округляем до сотых для четкости линий
         this.sideLength = Math.floor(this.sideLength * 100) / 100;
 
-        // Геометрия гексагона
-        this.hexAngle = 0.523598776; // 30 градусов в радианах
+        this.hexAngle = 0.523598776;
         this.hexHeight = Math.sin(this.hexAngle) * this.sideLength;
         this.hexRadius = Math.cos(this.hexAngle) * this.sideLength;
         this.hexRectHeight = this.sideLength + 2 * this.hexHeight;
         this.hexRectWidth = 2 * this.hexRadius;
 
-        // Центрирование сетки на экране
         const totalGridWidth = (gridWidth + 0.5) * this.hexRectWidth;
         const totalGridHeight = (gridWidth * 1.5 * this.sideLength) + this.hexHeight;
         
         this.offsetX = (availableWidth - totalGridWidth) / 2;
         this.offsetY = (availableHeight - totalGridHeight) / 2;
 
-        // Пересчет зависимых данных
         this.buildColorLUT();
         this.precomputeCellPositions();
+        
+        // Перерисовываем статичный слой
         this.rebuildStaticOutline();
         
-        // Отрисовка
+        // Перерисовываем клетки
         this.draw();
     }
 
@@ -90,7 +78,6 @@ class Renderer {
                 const cell = this.grid.cells[row][col];
                 if (!cell.isValid) continue;
 
-                // Координаты с учетом центрирования (offsetX, offsetY)
                 let x = col * this.hexRectWidth + ((row % 2) * this.hexRadius) + this.offsetX;
                 let y = row * (this.sideLength + this.hexHeight) + this.offsetY;
                 
@@ -100,17 +87,25 @@ class Renderer {
     }
 
     rebuildStaticOutline() {
-        const ctx = this.outlineCtx;
+        const ctx = this.gridCtx;
+        const w = this.gridCanvas.width;
+        const h = this.gridCanvas.height;
         
-        // Заливаем фон
+        // 1. Заливаем фон
         ctx.fillStyle = this.colors.bg;
-        ctx.fillRect(0, 0, this.outlineCanvas.width, this.outlineCanvas.height);
+        ctx.fillRect(0, 0, w, h);
 
-        // Адаптивная толщина линий: если клетки мелкие, линии тоньше
+        // ОПТИМИЗАЦИЯ: Если цвет фона совпадает с цветом сетки, не рисуем линии
+        // Это убирает лаги при ресайзе на больших картах в режиме "черное на черном"
+        if (this.colors.bg === this.colors.outline) {
+            return;
+        }
+
         ctx.lineWidth = (this.sideLength < 5) ? 0.5 : 1;
         ctx.strokeStyle = this.colors.outline;
 
         ctx.beginPath();
+        // Рисуем все гексы одним путем (batching)
         for (const item of this.validCells) {
             this.traceHexagonPath(ctx, item.x, item.y);
         }
@@ -118,19 +113,15 @@ class Renderer {
     }
 
     buildColorLUT() {
-        // Таблица цветов для оптимизации (4 племени * 21 возраст)
         this.colorLUT = Array.from({ length: 4 }, () => Array(21).fill('#000'));
-        
         for (let t = 0; t < 4; t++) {
             const base = Config.TRIBES[t].color;
             for (let age = 0; age <= 20; age++) {
                 let factor = 1 - (age / 22);
                 if (factor < 0) factor = 0;
-                
                 let r = Math.floor(base[0] + (255 - base[0]) * (1 - factor));
                 let g = Math.floor(base[1] + (255 - base[1]) * (1 - factor));
                 let b = Math.floor(base[2] + (255 - base[2]) * (1 - factor));
-                
                 this.colorLUT[t][age] = `rgb(${r},${g},${b})`;
             }
         }
@@ -143,22 +134,22 @@ class Renderer {
     }
 
     draw() {
-        // 1. Рисуем фон с сеткой (копируем из оффскрин канваса)
-        this.ctx.drawImage(this.outlineCanvas, 0, 0);
+        // Очищаем только слой с клетками (прозрачность)
+        this.cellsCtx.clearRect(0, 0, this.cellsCanvas.width, this.cellsCanvas.height);
 
-        // 2. Рисуем живые клетки
+        // Рисуем живые клетки
         for (const { cell, x, y } of this.validCells) {
             if (!cell.isAlive) continue;
 
-            this.ctx.beginPath();
-            this.traceHexagonPath(this.ctx, x, y);
+            this.cellsCtx.beginPath();
+            this.traceHexagonPath(this.cellsCtx, x, y);
             
             let age = cell.age;
             if (age > 20) age = 20;
             if (age < 0) age = 0;
             
-            this.ctx.fillStyle = this.colorLUT[cell.tribe][age];
-            this.ctx.fill();
+            this.cellsCtx.fillStyle = this.colorLUT[cell.tribe][age];
+            this.cellsCtx.fill();
         }
     }
 
@@ -173,7 +164,6 @@ class Renderer {
     }
 
     getGridCoordinate(screenX, screenY) {
-        // Корректируем координаты мыши с учетом смещения сетки
         screenX -= this.offsetX;
         screenY -= this.offsetY;
 

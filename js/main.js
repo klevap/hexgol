@@ -2,7 +2,8 @@ class Game {
     constructor() {
         this.size = Config.DEFAULT_SIZE;
         this.grid = new Grid(this.size);
-        this.renderer = new Renderer('board', this.grid);
+        // Передаем ID обоих канвасов
+        this.renderer = new Renderer('grid-layer', 'cells-layer', this.grid);
         
         this.renderer.setColors(Config.DEFAULT_BG_COLOR, Config.DEFAULT_OUTLINE_COLOR);
 
@@ -14,10 +15,14 @@ class Game {
         this.activeTribe = 0;
         this.generation = 0;
 
+        // Статистика производительности
+        this.frameCount = 0;
+        this.tickCount = 0;
+        this.lastStatTime = 0;
+
         this.initUI();
         this.setupEvents();
         
-        // Генерируем начальное состояние
         this.generateSym62();
     }
 
@@ -32,7 +37,6 @@ class Game {
     }
 
     setupEvents() {
-        // Кнопки UI
         document.getElementById('btn-play').onclick = () => this.play();
         document.getElementById('btn-pause').onclick = () => this.pause();
         document.getElementById('btn-next').onclick = () => this.step();
@@ -57,12 +61,12 @@ class Game {
 
         document.getElementById('col-bg').oninput = (e) => {
             this.renderer.setColors(e.target.value, this.renderer.colors.outline);
-            this.renderer.draw();
+            // При смене цвета фона перерисовываем только сетку (автоматически внутри setColors)
+            // И обновляем фон контейнера
             document.querySelector('.main-content').style.backgroundColor = e.target.value;
         };
         document.getElementById('col-outline').oninput = (e) => {
             this.renderer.setColors(this.renderer.colors.bg, e.target.value);
-            this.renderer.draw();
         };
 
         document.addEventListener('keydown', (e) => {
@@ -75,13 +79,12 @@ class Game {
             }
         });
 
-        // --- ВЗАИМОДЕЙСТВИЕ С КАНВАСОМ (МЫШЬ + TOUCH) ---
-        const canvas = document.getElementById('board');
+        // --- ВЗАИМОДЕЙСТВИЕ С КАНВАСОМ ---
+        // Слушаем события на верхнем слое (cells-layer)
+        const canvas = document.getElementById('cells-layer');
         
-        // Общая функция обработки ввода
         const handleInput = (clientX, clientY) => {
             const rect = canvas.getBoundingClientRect();
-            // Учитываем масштаб канваса (хотя теперь он 1:1, но на всякий случай)
             const x = (clientX - rect.left) * (canvas.width / rect.width);
             const y = (clientY - rect.top) * (canvas.height / rect.height);
 
@@ -96,16 +99,13 @@ class Game {
             }
         };
 
-        // Мышь
         let isDrawing = false;
         canvas.onmousedown = (e) => { isDrawing = true; handleInput(e.clientX, e.clientY); };
         canvas.onmousemove = (e) => { if(isDrawing) handleInput(e.clientX, e.clientY); };
         canvas.onmouseup = () => { isDrawing = false; };
         canvas.onmouseleave = () => { isDrawing = false; };
 
-        // --- TOUCH EVENTS (Для мобильных) ---
         canvas.addEventListener('touchstart', (e) => {
-            // Предотвращаем скролл страницы при касании канваса
             if(e.cancelable) e.preventDefault(); 
             isDrawing = true;
             handleInput(e.touches[0].clientX, e.touches[0].clientY);
@@ -118,15 +118,13 @@ class Game {
 
         canvas.addEventListener('touchend', () => { isDrawing = false; });
 
-        // --- РЕСАЙЗ ОКНА ---
-        // Если пользователь повернул телефон или изменил размер окна
+        // --- РЕСАЙЗ ОКНА (DEBOUNCE 100ms) ---
         let resizeTimeout;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
-                // Пересчитываем только визуальную часть, не сбрасывая игру
                 this.renderer.resize();
-            }, 100);
+            }, 100); // Задержка 100мс
         });
     }
 
@@ -174,6 +172,8 @@ class Game {
             bgInput.value = '#000000';
             outlineInput.value = '#00ff00';
         }
+        // draw вызывается автоматически внутри setColors -> rebuildStaticOutline, 
+        // но нам нужно обновить и клетки
         this.renderer.draw();
     }
 
@@ -181,25 +181,44 @@ class Game {
         if (this.rafId) return;
         document.getElementById('btn-play').classList.add('hidden');
         document.getElementById('btn-pause').classList.remove('hidden');
+        
         this.lastTs = performance.now();
+        this.lastStatTime = this.lastTs;
         this.accumulator = 0;
+        this.frameCount = 0;
+        this.tickCount = 0;
 
         const loop = (ts) => {
             const dt = ts - this.lastTs;
             this.lastTs = ts;
             this.accumulator += dt;
+            
+            // Защита от "спирали смерти" при переключении вкладок
             if (this.accumulator > 1000) this.accumulator = 1000;
+            
             let updated = false;
             while (this.accumulator >= this.speed) {
                 this.grid.update();
                 this.generation++;
+                this.tickCount++; // Считаем тики симуляции
                 this.accumulator -= this.speed;
                 updated = true;
             }
+            
             if (updated) {
-                document.getElementById('stats-display').innerText = `Generation: ${this.generation}`;
+                document.getElementById('stats-gen').innerText = `Generation: ${this.generation}`;
                 this.renderer.draw();
+                this.frameCount++; // Считаем кадры отрисовки
             }
+
+            // Обновление FPS/TPS раз в секунду
+            if (ts - this.lastStatTime >= 1000) {
+                document.getElementById('stats-perf').innerText = `FPS: ${this.frameCount} | TPS: ${this.tickCount}`;
+                this.frameCount = 0;
+                this.tickCount = 0;
+                this.lastStatTime = ts;
+            }
+
             this.rafId = requestAnimationFrame(loop);
         };
         this.rafId = requestAnimationFrame(loop);
@@ -216,7 +235,7 @@ class Game {
     step() {
         this.grid.update();
         this.generation++;
-        document.getElementById('stats-display').innerText = `Generation: ${this.generation}`;
+        document.getElementById('stats-gen').innerText = `Generation: ${this.generation}`;
         this.renderer.draw();
     }
 
@@ -224,17 +243,17 @@ class Game {
         this.pause();
         this.grid.clear();
         this.generation = 0;
+        document.getElementById('stats-gen').innerText = `Generation: 0`;
         this.renderer.draw();
     }
 
-    // Переименовал метод, чтобы не путать с визуальным ресайзом
     resizeGrid(newSize) {
         this.pause();
         this.size = newSize;
         this.grid = new Grid(this.size);
         
         this.renderer.grid = this.grid;
-        this.renderer.resize(); // Пересчитываем геометрию под новую сетку
+        this.renderer.resize(); 
         
         this.randomize(); 
     }

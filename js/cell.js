@@ -2,42 +2,51 @@ class Cell {
     constructor(row, col, isValid) {
         this.row = row;
         this.col = col;
-        this.isValid = isValid; // Находится ли клетка внутри шестиугольника
+        this.isValid = isValid; 
         
-        this.isAlive = 0; // 0 - мертва, 1 - жива
-        this.tribe = 0;   // ID племени
+        this.isAlive = 0; 
+        this.tribe = 0;   
         this.age = 0;
         
-        this.nextState = {
-            isAlive: 0,
-            tribe: 0,
-            age: 0
-        };
+        // Ссылка на соседей (заполняется в Grid)
+        this.neighbors = [];
+
+        // Следующее состояние (плоская структура вместо объекта)
+        this.nextAlive = 0;
+        this.nextTribe = 0;
+        this.nextAge = 0;
     }
 
     // Подготовка к следующему шагу (расчет состояния)
-    calcNextState(neighbors) {
+    // neighbors теперь берется из this.neighbors, аргумент не нужен, 
+    // но оставим сигнатуру или будем использовать this.neighbors напрямую
+    calcNextState() {
         if (!this.isValid) return;
 
-        // Подсчет соседей по племенам
-        let counts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+        // ОПТИМИЗАЦИЯ: Вместо объекта counts используем переменные
+        let livingBlue = 0;
+        let livingRed = 0;
+        let livingGreen = 0;
+        let livingPurple = 0;
         
-        for (let n of neighbors) {
+        // Проход по предрасчитанным соседям
+        // Используем for loop для скорости (быстрее чем for..of в некоторых движках, но for..of читаемее)
+        const neighbors = this.neighbors;
+        const len = neighbors.length;
+        for (let i = 0; i < len; i++) {
+            const n = neighbors[i];
             if (n.isAlive) {
-                // В оригинале учитывался возраст: sum = sum + neighbors[i].age
-                // Но в правилах рождения (checkSwap) используются просто количества.
-                // В оригинале countLivingNeighborsBlue суммирует age. Это странно для Game of Life,
-                // но сохраним логику оригинала: сила соседа = его возраст.
-                if (Config.TRIBES[n.tribe]) {
-                    counts[n.tribe] += n.age;
+                // Сила соседа = его возраст
+                const val = n.age;
+                // switch быстрее доступа к объекту по ключу
+                switch (n.tribe) {
+                    case 0: livingBlue += val; break;
+                    case 1: livingRed += val; break;
+                    case 2: livingGreen += val; break;
+                    case 3: livingPurple += val; break;
                 }
             }
         }
-
-        let livingBlue = counts[0];
-        let livingRed = counts[1];
-        let livingGreen = counts[2];
-        let livingPurple = counts[3];
 
         // Логика выживания (из оригинала)
         let willDie = false;
@@ -53,13 +62,13 @@ class Cell {
             }
             
             if (willDie) {
-                this.nextState.isAlive = -1; // Маркер умирания
-                this.nextState.tribe = this.tribe;
-                this.nextState.age = this.age; // Возраст пока сохраняем для анимации угасания
+                this.nextAlive = -1; // Маркер умирания
+                this.nextTribe = this.tribe;
+                this.nextAge = this.age; 
             } else {
-                this.nextState.isAlive = 1;
-                this.nextState.tribe = this.tribe;
-                this.nextState.age = this.age + 1; // Старение
+                this.nextAlive = 1;
+                this.nextTribe = this.tribe;
+                this.nextAge = this.age + 1; // Старение
             }
         } 
         // Логика рождения (из оригинала)
@@ -90,12 +99,12 @@ class Cell {
             }
 
             if (newTribe !== -1) {
-                this.nextState.isAlive = 1;
-                this.nextState.tribe = newTribe;
-                this.nextState.age = 1; // Новорожденный
+                this.nextAlive = 1;
+                this.nextTribe = newTribe;
+                this.nextAge = 1; // Новорожденный
             } else {
-                this.nextState.isAlive = 0;
-                this.nextState.age = 0;
+                this.nextAlive = 0;
+                this.nextAge = 0;
             }
         }
     }
@@ -105,7 +114,7 @@ class Cell {
         if (!this.isValid) return;
 
         // Обработка умирания (плавное затухание возраста)
-        if (this.nextState.isAlive === -1) {
+        if (this.nextAlive === -1) {
             if (this.tribe === 3) this.age -= 3;
             else this.age -= 4;
             
@@ -116,9 +125,9 @@ class Cell {
                 this.isAlive = 1; // Все еще виден, но угасает
             }
         } else {
-            this.isAlive = this.nextState.isAlive;
-            this.tribe = this.nextState.tribe;
-            this.age = this.nextState.age;
+            this.isAlive = this.nextAlive;
+            this.tribe = this.nextTribe;
+            this.age = this.nextAge;
         }
 
         if (this.age > 20) this.age = 20; // Cap age

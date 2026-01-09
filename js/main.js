@@ -4,13 +4,14 @@ class Game {
         this.grid = new Grid(this.size);
         this.renderer = new Renderer('board', this.grid);
         
-        // Установка цветов по умолчанию из конфига
         this.renderer.setColors(Config.DEFAULT_BG_COLOR, Config.DEFAULT_OUTLINE_COLOR);
 
-        this.intervalId = null;
+        // Игровой цикл
+        this.rafId = null;
+        this.lastTs = 0;
+        this.accumulator = 0;
         
-        // ИЗМЕНЕНИЕ: Установка максимальной скорости (соответствует value=60 в HTML)
-        // 1000ms / 60 = ~16.6ms
+        // Скорость: 60 тиков в секунду макс
         this.speed = 1000 / 60; 
         
         this.activeTribe = 0;
@@ -19,7 +20,6 @@ class Game {
         this.initUI();
         this.setupEvents();
         
-        // ИЗМЕНЕНИЕ: Изначальная генерация Sym 6x2 вместо Random
         this.generateSym62();
     }
 
@@ -41,11 +41,8 @@ class Game {
 
         document.getElementById('speed-range').oninput = (e) => {
             let val = parseInt(e.target.value);
+            // Чем больше значение, тем меньше интервал (быстрее)
             this.speed = 1000 / val;
-            if (this.intervalId) {
-                this.pause();
-                this.play();
-            }
         };
 
         document.getElementById('size-select').onchange = (e) => {
@@ -56,16 +53,13 @@ class Game {
             this.activeTribe = parseInt(e.target.value);
         };
 
-        // Theme Selector
         document.getElementById('theme-select').onchange = (e) => {
             this.setTheme(e.target.value);
         };
 
-        // Colors
         document.getElementById('col-bg').oninput = (e) => {
             this.renderer.setColors(e.target.value, this.renderer.colors.outline);
             this.renderer.draw();
-            // Update main content bg to match
             document.querySelector('.main-content').style.backgroundColor = e.target.value;
         };
         document.getElementById('col-outline').oninput = (e) => {
@@ -73,7 +67,6 @@ class Game {
             this.renderer.draw();
         };
 
-        // Canvas Interaction
         const canvas = document.getElementById('board');
         const handleInput = (e) => {
             const rect = canvas.getBoundingClientRect();
@@ -100,25 +93,21 @@ class Game {
         canvas.onmouseleave = () => { isDrawing = false; };
     }
 
-    // --- Theme Logic ---
     setTheme(themeName) {
         const root = document.documentElement;
         const bgInput = document.getElementById('col-bg');
         const outlineInput = document.getElementById('col-outline');
 
         if (themeName === 'dark') {
-            // CSS Vars
             root.style.setProperty('--bg-color', '#121212');
             root.style.setProperty('--sidebar-bg', '#1e1e1e');
             root.style.setProperty('--text-color', '#ecf0f1');
             root.style.setProperty('--input-bg', '#2c2c2c');
             root.style.setProperty('--border-color', '#333');
             
-            // Canvas Colors
             this.renderer.setColors('#000000', '#333333');
             document.querySelector('.main-content').style.backgroundColor = '#000000';
             
-            // Update Inputs
             bgInput.value = '#000000';
             outlineInput.value = '#333333';
         } 
@@ -151,19 +140,50 @@ class Game {
         this.renderer.draw();
     }
 
-    // --- Game Control ---
+    // --- Game Control (Optimized Loop) ---
 
     play() {
-        if (this.intervalId) return;
+        if (this.rafId) return;
+        
         document.getElementById('btn-play').classList.add('hidden');
         document.getElementById('btn-pause').classList.remove('hidden');
-        this.intervalId = setInterval(() => this.step(), this.speed);
+
+        this.lastTs = performance.now();
+        this.accumulator = 0;
+
+        const loop = (ts) => {
+            const dt = ts - this.lastTs;
+            this.lastTs = ts;
+            this.accumulator += dt;
+
+            // Защита от "спирали смерти" (если вкладка была неактивна долго)
+            if (this.accumulator > 1000) this.accumulator = 1000;
+
+            let updated = false;
+            
+            // Выполняем шаги симуляции, пока накопилось время
+            while (this.accumulator >= this.speed) {
+                this.grid.update();
+                this.generation++;
+                this.accumulator -= this.speed;
+                updated = true;
+            }
+
+            if (updated) {
+                document.getElementById('stats-display').innerText = `Generation: ${this.generation}`;
+                this.renderer.draw();
+            }
+
+            this.rafId = requestAnimationFrame(loop);
+        };
+
+        this.rafId = requestAnimationFrame(loop);
     }
 
     pause() {
-        if (!this.intervalId) return;
-        clearInterval(this.intervalId);
-        this.intervalId = null;
+        if (!this.rafId) return;
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
         document.getElementById('btn-play').classList.remove('hidden');
         document.getElementById('btn-pause').classList.add('hidden');
     }
@@ -186,13 +206,11 @@ class Game {
         this.pause();
         this.size = newSize;
         this.grid = new Grid(this.size);
+        
+        // Обновляем ссылку на grid в рендерере и пересчитываем всё
         this.renderer.grid = this.grid;
         this.renderer.resize();
-        // При ресайзе можно оставить рандом или тоже вызывать Sym62, 
-        // но обычно при смене размера ожидается сброс. Оставим randomize как было,
-        // или можно поменять на generateSym62() если хотите постоянства.
-        // В данном коде я оставляю randomize() для кнопки ресайза, 
-        // так как запрос был только про "открытие страницы".
+        
         this.randomize(); 
     }
 
@@ -221,5 +239,4 @@ class Game {
     generatePurpleSym3() { this.grid.randomizePurpleSym3(); this.renderer.draw(); }
 }
 
-// Start the game
 const game = new Game();

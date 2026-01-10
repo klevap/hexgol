@@ -341,7 +341,7 @@ class Game {
     generateSym6() { this.grid.randomizeSym6(); this.renderer.draw(); }
     generateSym32() { this.grid.randomizeSym32(); this.renderer.draw(); }
     generateSym62() { this.grid.randomizeSym62(); this.renderer.draw(); }
-    generateSym622() { this.grid.randomizeSym622(); this.renderer.draw(); }
+    generateSym322() { this.grid.randomizeSym322(); this.renderer.draw(); }
 }
 
 const game = new Game();

@@ -124,7 +124,6 @@ class Grid {
         this.generationTribes = tribesArray;
     }
 
-    // Вспомогательный метод для получения ID племени из индекса
     getTribe(index) {
         return this.generationTribes[index % this.generationTribes.length];
     }
@@ -135,7 +134,6 @@ class Grid {
 
     randomizeSym2() {
         this.clear();
-        // c - это индекс в массиве generationTribes
         let c = 0; 
         let h = Math.floor(this.size / 2);
         
@@ -146,9 +144,7 @@ class Grid {
 
                 if(num < 0.4) {
                     alive = 1;
-                    // Переключаем цвет
                     c = (c + 1) % this.generationTribes.length;
-                    // Сброс к первому цвету с некоторой вероятностью
                     if(num > 0.35) c = 0;
                 }
 
@@ -270,10 +266,9 @@ class Grid {
                         c = (c + 1) % this.generationTribes.length;
                         if(num > 0.45) c = 0;
                     } else {
-                        // Логика для малых размеров или шума
-                        if(num2 > 0.6666) c = 2; // index 2
-                        else if(num2 > 0.3333) c = 1; // index 1
-                        else c = 0; // index 0
+                        if(num2 > 0.6666) c = 2; 
+                        else if(num2 > 0.3333) c = 1; 
+                        else c = 0; 
                     }
                 }
 
@@ -443,6 +438,119 @@ class Grid {
                 a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
                 b_sym = 2 * h - b;
                 this.setCell(b_sym, a_sym, alive, tribe, age);
+            }
+        }
+    }
+
+    // Новый метод: Sym 6x2x2
+    randomizeSym622() {
+        this.clear();
+        let h = Math.floor(this.size / 2);
+        
+        // Вспомогательная функция для определения цвета по координатам
+        const getTribeBySector = (r, c) => {
+            // Преобразование в декартовы координаты относительно центра (h, h)
+            // Высота ряда ~ sqrt(3), ширина колонки ~ 2
+            // Учет смещения четных/нечетных рядов
+            const dy = (r - h) * 1.732;
+            const dx = (c - h) * 2 + ((r % 2) - (h % 2));
+            
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const maxR = h * 2; // Приблизительный радиус сетки в единицах ширины
+            
+            // 1. Логика Фиолетового центра (если выбрано 3 цвета)
+            // В main.js 'rbp' дает [1, 0, 3]. Индекс 2 - это Purple.
+            if (this.generationTribes.length >= 3) {
+                if (dist < maxR * 0.4) {
+                    return this.generationTribes[2];
+                }
+            }
+            
+            // 2. Логика Секторов
+            let angle = Math.atan2(dy, dx);
+            if (angle < 0) angle += 2 * Math.PI;
+            
+            // 6 секторов по 60 градусов (PI/3)
+            const sector = Math.floor(angle / (Math.PI / 3));
+            
+            // Чередование цветов
+            if (sector % 2 === 0) return this.generationTribes[0];
+            return this.generationTribes[1];
+        };
+
+        // Используем ту же структуру цикла, что и в Sym62, но цвет вычисляем для каждой точки
+        for(let i = 0; i < h + 1; i++) {
+            for(let j = 0; j < Math.floor((i + 1) / 2); j++) {
+                let num = Math.random();
+                let alive = 0;
+                let age = 0;
+
+                if(num < 0.55) {
+                    alive = 1;
+                }
+
+                if(alive) {
+                    age = Math.floor(1 + 19 * Math.random());
+                } else {
+                    continue; // Если клетка мертва, пропускаем расчеты
+                }
+
+                // Массив координат для всех 12 симметричных точек
+                let points = [];
+
+                let a = h - i + Math.floor(j / 2);
+                let b = h - j;
+                points.push({r: b, c: a});
+                
+                let a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
+                let b_sym = 2 * h - b;
+                points.push({r: b_sym, c: a_sym});
+                
+                a = h - i + Math.floor((i - j) / 2);
+                b = h - i + j;
+                points.push({r: b, c: a});
+                
+                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
+                b_sym = 2 * h - b;
+                points.push({r: b_sym, c: a_sym});
+                
+                a = h + i - Math.floor((i - j + 1) / 2);
+                b = h - i + j;
+                points.push({r: b, c: a});
+
+                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
+                b_sym = 2 * h - b;
+                points.push({r: b_sym, c: a_sym});
+                
+                a = h + i - Math.floor((j + 1) / 2);
+                b = h - j;
+                points.push({r: b, c: a});
+
+                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
+                b_sym = 2 * h - b;
+                points.push({r: b_sym, c: a_sym});
+                
+                a = h - j + Math.floor(i / 2);
+                b = h + i;
+                points.push({r: b, c: a});
+                
+                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
+                b_sym = 2 * h - b;
+                points.push({r: b_sym, c: a_sym});
+                
+                a = h - i + j + Math.floor(i / 2);
+                b = h + i;
+                points.push({r: b, c: a});
+                
+                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
+                b_sym = 2 * h - b;
+                points.push({r: b_sym, c: a_sym});
+
+                // Применяем состояние ко всем точкам, вычисляя цвет индивидуально
+                for (let p of points) {
+                    let tribe = getTribeBySector(p.r, p.c);
+                    this.setCell(p.r, p.c, alive, tribe, age);
+                }
             }
         }
     }

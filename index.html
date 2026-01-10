@@ -97,11 +97,12 @@
                     <button onclick="game.generateSym6()">Sym 6</button>
                     <button onclick="game.generateSym32()">Sym 3x2</button>
                     <button onclick="game.generateSym62()">Sym 6x2</button>
+                    <button onclick="game.generateSym622()" style="grid-column: span 2; background: #4a235a;">Sym 6x2x2</button>
                 </div>
             </div>
 
             <div class="control-group">
-                <label>Colors</label>
+                <label>Colors & Display</label>
                 <div class="color-picker">
                     <input type="checkbox" id="chk-bg" checked title="Toggle Background">
                     <span>Background</span>
@@ -111,6 +112,10 @@
                     <input type="checkbox" id="chk-outline" checked title="Toggle Grid Outline">
                     <span>Outline</span>
                     <input type="color" id="col-outline" value="#333333">
+                </div>
+                <div class="color-picker" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                    <input type="checkbox" id="chk-invert-age">
+                    <span>Invert Aging (White -> Color)</span>
                 </div>
             </div>
         </aside>

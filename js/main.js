@@ -90,6 +90,11 @@ class Game {
         document.getElementById('chk-bg').onchange = updateColors;
         document.getElementById('chk-outline').onchange = updateColors;
 
+        // --- НОВАЯ ОПЦИЯ: Инверсия старения ---
+        document.getElementById('chk-invert-age').onchange = (e) => {
+            this.renderer.setInvertAging(e.target.checked);
+        };
+
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
                 e.preventDefault();
@@ -336,6 +341,7 @@ class Game {
     generateSym6() { this.grid.randomizeSym6(); this.renderer.draw(); }
     generateSym32() { this.grid.randomizeSym32(); this.renderer.draw(); }
     generateSym62() { this.grid.randomizeSym62(); this.renderer.draw(); }
+    generateSym622() { this.grid.randomizeSym622(); this.renderer.draw(); }
 }
 
 const game = new Game();

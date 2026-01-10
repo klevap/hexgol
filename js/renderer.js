@@ -16,9 +16,10 @@ class Renderer {
             outline: '#000000'
         };
 
-        // Флаги видимости
+        // Флаги видимости и настроек
         this.showBg = true;
         this.showOutline = true;
+        this.invertAging = false; // false: Молодые=Цветные, true: Молодые=Белые
 
         this.validCells = [];
         this.colorLUT = null;
@@ -127,27 +128,49 @@ class Renderer {
                 this.traceHexagonPath(ctx, item.x, item.y);
                 count++;
 
-                // Если накопили достаточно фигур, рисуем их и начинаем новый путь
                 if (count % BATCH_SIZE === 0) {
                     ctx.stroke();
                     ctx.beginPath();
                 }
             }
-            // Рисуем остаток
             ctx.stroke();
         }
     }
 
+    setInvertAging(val) {
+        this.invertAging = val;
+        this.buildColorLUT();
+        this.draw();
+    }
+
     buildColorLUT() {
         this.colorLUT = Array.from({ length: 4 }, () => Array(21).fill('#000'));
+        
         for (let t = 0; t < 4; t++) {
             const base = Config.TRIBES[t].color;
+            
             for (let age = 0; age <= 20; age++) {
-                let factor = 1 - (age / 22);
-                if (factor < 0) factor = 0;
-                let r = Math.floor(base[0] + (255 - base[0]) * (1 - factor));
-                let g = Math.floor(base[1] + (255 - base[1]) * (1 - factor));
-                let b = Math.floor(base[2] + (255 - base[2]) * (1 - factor));
+                let whiteAmount;
+
+                if (this.invertAging) {
+                    // ИНВЕРСИЯ: Молодые (Age 1) -> Белые, Старые (Age 20) -> Цветные
+                    // whiteAmount должен быть высоким при малом age
+                    whiteAmount = 1 - (age / 22);
+                } else {
+                    // СТАНДАРТ: Молодые (Age 1) -> Цветные, Старые (Age 20) -> Белые
+                    // whiteAmount должен быть низким при малом age
+                    whiteAmount = age / 22;
+                }
+
+                // Клампинг значений
+                if (whiteAmount < 0) whiteAmount = 0;
+                if (whiteAmount > 1) whiteAmount = 1;
+
+                // Смешивание: BaseColor + (White - BaseColor) * whiteAmount
+                let r = Math.floor(base[0] + (255 - base[0]) * whiteAmount);
+                let g = Math.floor(base[1] + (255 - base[1]) * whiteAmount);
+                let b = Math.floor(base[2] + (255 - base[2]) * whiteAmount);
+                
                 this.colorLUT[t][age] = `rgb(${r},${g},${b})`;
             }
         }
@@ -166,7 +189,6 @@ class Renderer {
     }
 
     draw() {
-        // Очищаем только слой с клетками
         this.cellsCtx.clearRect(0, 0, this.cellsCanvas.width, this.cellsCanvas.height);
 
         // Рисуем живые клетки
@@ -188,11 +210,6 @@ class Renderer {
             let age = cell.age;
             if (age > 20) age = 20;
             if (age < 0) age = 0;
-            
-            // Canvas State Change Optimization
-            // Чтобы не делать beginPath/fill на каждую клетку, группируем по цвету?
-            // Нет, проще рисовать по одной, так как цвета разные.
-            // Но для скорости отрисовки большого количества объектов:
             
             this.cellsCtx.fillStyle = this.colorLUT[cell.tribe][age];
             this.cellsCtx.beginPath();

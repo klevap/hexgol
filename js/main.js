@@ -64,13 +64,31 @@ class Game {
             this.setTheme(e.target.value);
         };
 
-        document.getElementById('col-bg').oninput = (e) => {
-            this.renderer.setColors(e.target.value, this.renderer.colors.outline);
-            document.querySelector('.main-content').style.backgroundColor = e.target.value;
+        // --- Управление цветами и чекбоксами ---
+        const updateColors = () => {
+            const bg = document.getElementById('col-bg').value;
+            const outline = document.getElementById('col-outline').value;
+            const showBg = document.getElementById('chk-bg').checked;
+            const showOutline = document.getElementById('chk-outline').checked;
+
+            // Обновляем рендерер (он сам решит, рисовать прозрачность или цвет)
+            this.renderer.setColors(bg, outline);
+            this.renderer.setVisibility(showBg, showOutline);
+
+            // Обновляем CSS контейнера для визуального комфорта в приложении
+            const mainContent = document.querySelector('.main-content');
+            if (showBg) {
+                mainContent.style.backgroundColor = bg;
+            } else {
+                // Если фон выключен (прозрачный), делаем контейнер серым
+                mainContent.style.backgroundColor = '#2c2c2c'; 
+            }
         };
-        document.getElementById('col-outline').oninput = (e) => {
-            this.renderer.setColors(this.renderer.colors.bg, e.target.value);
-        };
+
+        document.getElementById('col-bg').oninput = updateColors;
+        document.getElementById('col-outline').oninput = updateColors;
+        document.getElementById('chk-bg').onchange = updateColors;
+        document.getElementById('chk-outline').onchange = updateColors;
 
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space') {
@@ -152,17 +170,14 @@ class Game {
         canvas.height = h;
         const ctx = canvas.getContext('2d');
 
-        // 1. Рисуем фон (так как grid-layer может быть прозрачным или оптимизированным)
-        ctx.fillStyle = this.renderer.colors.bg;
-        ctx.fillRect(0, 0, w, h);
-
-        // 2. Рисуем сетку
+        // 1. Рисуем слой сетки/фона
+        // Если галочка фона снята, gridCanvas прозрачный, и скриншот будет прозрачным
         ctx.drawImage(this.renderer.gridCanvas, 0, 0);
 
-        // 3. Рисуем клетки
+        // 2. Рисуем клетки
         ctx.drawImage(this.renderer.cellsCanvas, 0, 0);
 
-        // 4. Скачиваем
+        // 3. Скачиваем
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         link.download = `hex-life-${timestamp}.png`;
@@ -174,6 +189,12 @@ class Game {
         const root = document.documentElement;
         const bgInput = document.getElementById('col-bg');
         const outlineInput = document.getElementById('col-outline');
+        const chkBg = document.getElementById('chk-bg');
+        const chkOutline = document.getElementById('chk-outline');
+
+        // При смене темы включаем галочки обратно
+        chkBg.checked = true;
+        chkOutline.checked = true;
 
         if (themeName === 'dark') {
             root.style.setProperty('--bg-color', '#121212');
@@ -181,9 +202,6 @@ class Game {
             root.style.setProperty('--text-color', '#ecf0f1');
             root.style.setProperty('--input-bg', '#2c2c2c');
             root.style.setProperty('--border-color', '#333');
-            
-            this.renderer.setColors('#000000', '#333333');
-            document.querySelector('.main-content').style.backgroundColor = '#000000';
             
             bgInput.value = '#000000';
             outlineInput.value = '#333333';
@@ -195,9 +213,6 @@ class Game {
             root.style.setProperty('--input-bg', '#ffffff');
             root.style.setProperty('--border-color', '#bdc3c7');
 
-            this.renderer.setColors('#ffffff', '#000000');
-            document.querySelector('.main-content').style.backgroundColor = '#d7f7f1';
-
             bgInput.value = '#ffffff';
             outlineInput.value = '#000000';
         }
@@ -208,13 +223,12 @@ class Game {
             root.style.setProperty('--input-bg', '#111');
             root.style.setProperty('--border-color', '#00ff00');
 
-            this.renderer.setColors('#000000', '#00ff00');
-            document.querySelector('.main-content').style.backgroundColor = '#000000';
-
             bgInput.value = '#000000';
             outlineInput.value = '#00ff00';
         }
-        this.renderer.draw();
+
+        // Принудительно вызываем обновление цветов и видимости
+        bgInput.dispatchEvent(new Event('input'));
     }
 
     play() {

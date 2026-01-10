@@ -2,11 +2,12 @@ class Renderer {
     constructor(gridCanvasId, cellsCanvasId, grid) {
         // Слой 0: Фон и сетка (статичный)
         this.gridCanvas = document.getElementById(gridCanvasId);
-        this.gridCtx = this.gridCanvas.getContext('2d', { alpha: false }); // alpha: false для скорости фона
+        // ВАЖНО: alpha: true, чтобы поддерживать прозрачность
+        this.gridCtx = this.gridCanvas.getContext('2d', { alpha: true }); 
 
         // Слой 1: Клетки (динамичный)
         this.cellsCanvas = document.getElementById(cellsCanvasId);
-        this.cellsCtx = this.cellsCanvas.getContext('2d', { alpha: true }); // alpha: true для прозрачности
+        this.cellsCtx = this.cellsCanvas.getContext('2d', { alpha: true });
 
         this.grid = grid;
         
@@ -14,6 +15,10 @@ class Renderer {
             bg: '#ffffff',
             outline: '#000000'
         };
+
+        // Флаги видимости
+        this.showBg = true;
+        this.showOutline = true;
 
         this.validCells = [];
         this.colorLUT = null;
@@ -91,25 +96,46 @@ class Renderer {
         const w = this.gridCanvas.width;
         const h = this.gridCanvas.height;
         
-        // 1. Заливаем фон
-        ctx.fillStyle = this.colors.bg;
-        ctx.fillRect(0, 0, w, h);
+        // 1. Очищаем канвас
+        ctx.clearRect(0, 0, w, h);
 
-        // ОПТИМИЗАЦИЯ: Если цвет фона совпадает с цветом сетки, не рисуем линии
-        // Это убирает лаги при ресайзе на больших картах в режиме "черное на черном"
-        if (this.colors.bg === this.colors.outline) {
-            return;
+        // 2. Если фон включен, заливаем цветом
+        if (this.showBg) {
+            ctx.fillStyle = this.colors.bg;
+            ctx.fillRect(0, 0, w, h);
         }
 
-        ctx.lineWidth = (this.sideLength < 5) ? 0.5 : 1;
-        ctx.strokeStyle = this.colors.outline;
+        // 3. Если сетка включена, рисуем её
+        if (this.showOutline) {
+            // ОПТИМИЗАЦИЯ: Если цвет фона совпадает с цветом сетки и фон включен, не рисуем линии
+            if (this.showBg && this.colors.bg === this.colors.outline) {
+                return;
+            }
 
-        ctx.beginPath();
-        // Рисуем все гексы одним путем (batching)
-        for (const item of this.validCells) {
-            this.traceHexagonPath(ctx, item.x, item.y);
+            ctx.lineWidth = (this.sideLength < 5) ? 0.5 : 1;
+            ctx.strokeStyle = this.colors.outline;
+
+            // --- ИСПРАВЛЕНИЕ ЗАВИСАНИЯ (BATCHING) ---
+            // Вместо одного огромного пути, разбиваем отрисовку на порции.
+            // HTML5 Canvas очень плохо переваривает stroke() для путей с >10k точками.
+            
+            const BATCH_SIZE = 3000; // Рисуем по 3000 гексов за раз
+            let count = 0;
+
+            ctx.beginPath();
+            for (const item of this.validCells) {
+                this.traceHexagonPath(ctx, item.x, item.y);
+                count++;
+
+                // Если накопили достаточно фигур, рисуем их и начинаем новый путь
+                if (count % BATCH_SIZE === 0) {
+                    ctx.stroke();
+                    ctx.beginPath();
+                }
+            }
+            // Рисуем остаток
+            ctx.stroke();
         }
-        ctx.stroke();
     }
 
     buildColorLUT() {
@@ -133,22 +159,44 @@ class Renderer {
         this.rebuildStaticOutline();
     }
 
+    setVisibility(showBg, showOutline) {
+        this.showBg = showBg;
+        this.showOutline = showOutline;
+        this.rebuildStaticOutline();
+    }
+
     draw() {
-        // Очищаем только слой с клетками (прозрачность)
+        // Очищаем только слой с клетками
         this.cellsCtx.clearRect(0, 0, this.cellsCanvas.width, this.cellsCanvas.height);
 
         // Рисуем живые клетки
+        // Здесь тоже можно применить батчинг, если живых клеток станет > 20-30 тысяч,
+        // но обычно fill() работает быстрее чем stroke() для сложных путей.
+        // Однако для надежности добавим батчинг и сюда.
+        
+        const BATCH_SIZE = 3000;
+        let count = 0;
+        let currentTribe = -1;
+        let currentAge = -1;
+
+        // Сортировка не обязательна, но переключение fillStyle дорогое.
+        // В простой реализации просто рисуем.
+        
         for (const { cell, x, y } of this.validCells) {
             if (!cell.isAlive) continue;
 
-            this.cellsCtx.beginPath();
-            this.traceHexagonPath(this.cellsCtx, x, y);
-            
             let age = cell.age;
             if (age > 20) age = 20;
             if (age < 0) age = 0;
             
+            // Canvas State Change Optimization
+            // Чтобы не делать beginPath/fill на каждую клетку, группируем по цвету?
+            // Нет, проще рисовать по одной, так как цвета разные.
+            // Но для скорости отрисовки большого количества объектов:
+            
             this.cellsCtx.fillStyle = this.colorLUT[cell.tribe][age];
+            this.cellsCtx.beginPath();
+            this.traceHexagonPath(this.cellsCtx, x, y);
             this.cellsCtx.fill();
         }
     }

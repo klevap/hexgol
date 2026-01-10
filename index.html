@@ -33,10 +33,15 @@
             </div>
             
             <div class="control-group">
-                <button id="btn-play" class="primary">Play</button>
-                <button id="btn-pause" class="secondary hidden">Pause</button>
-                <button id="btn-next">Next Step</button>
-                <button id="btn-clear" class="danger">Genocide</button>
+                <div class="button-grid">
+                    <button id="btn-play" class="primary">Play</button>
+                    <button id="btn-pause" class="secondary hidden">Pause</button>
+                    <button id="btn-screenshot" title="Take Screenshot">📷 Save</button>
+                </div>
+                <div class="button-grid" style="margin-top: 8px;">
+                    <button id="btn-next">Next Step</button>
+                    <button id="btn-clear" class="danger">Genocide</button>
+                </div>
             </div>
 
             <div class="control-group">
@@ -73,6 +78,16 @@
             </div>
 
             <div class="control-group">
+                <label>Generation Colors</label>
+                <select id="gen-colors-select">
+                    <option value="rb" selected>Red & Blue</option>
+                    <option value="rp">Red & Purple</option>
+                    <option value="bp">Blue & Purple</option>
+                    <option value="rbp">Red & Blue & Purple</option>
+                </select>
+            </div>
+
+            <div class="control-group">
                 <label>Generators</label>
                 <div class="button-grid">
                     <button onclick="game.randomize()">Random</button>
@@ -82,7 +97,6 @@
                     <button onclick="game.generateSym6()">Sym 6</button>
                     <button onclick="game.generateSym32()">Sym 3x2</button>
                     <button onclick="game.generateSym62()">Sym 6x2</button>
-                    <button onclick="game.generatePurpleSym3()">Purple Sym3</button>
                 </div>
             </div>
 

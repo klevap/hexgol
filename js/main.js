@@ -2,7 +2,6 @@ class Game {
     constructor() {
         this.size = Config.DEFAULT_SIZE;
         this.grid = new Grid(this.size);
-        // Передаем ID обоих канвасов
         this.renderer = new Renderer('grid-layer', 'cells-layer', this.grid);
         
         this.renderer.setColors(Config.DEFAULT_BG_COLOR, Config.DEFAULT_OUTLINE_COLOR);
@@ -15,7 +14,6 @@ class Game {
         this.activeTribe = 0;
         this.generation = 0;
 
-        // Статистика производительности
         this.frameCount = 0;
         this.tickCount = 0;
         this.lastStatTime = 0;
@@ -23,6 +21,8 @@ class Game {
         this.initUI();
         this.setupEvents();
         
+        // Инициализация цветов генерации по умолчанию (Red & Blue)
+        this.updateGenerationColors('rb');
         this.generateSym62();
     }
 
@@ -41,6 +41,7 @@ class Game {
         document.getElementById('btn-pause').onclick = () => this.pause();
         document.getElementById('btn-next').onclick = () => this.step();
         document.getElementById('btn-clear').onclick = () => this.clear();
+        document.getElementById('btn-screenshot').onclick = () => this.takeScreenshot();
 
         document.getElementById('speed-range').oninput = (e) => {
             let val = parseInt(e.target.value);
@@ -55,14 +56,16 @@ class Game {
             this.activeTribe = parseInt(e.target.value);
         };
 
+        document.getElementById('gen-colors-select').onchange = (e) => {
+            this.updateGenerationColors(e.target.value);
+        };
+
         document.getElementById('theme-select').onchange = (e) => {
             this.setTheme(e.target.value);
         };
 
         document.getElementById('col-bg').oninput = (e) => {
             this.renderer.setColors(e.target.value, this.renderer.colors.outline);
-            // При смене цвета фона перерисовываем только сетку (автоматически внутри setColors)
-            // И обновляем фон контейнера
             document.querySelector('.main-content').style.backgroundColor = e.target.value;
         };
         document.getElementById('col-outline').oninput = (e) => {
@@ -80,7 +83,6 @@ class Game {
         });
 
         // --- ВЗАИМОДЕЙСТВИЕ С КАНВАСОМ ---
-        // Слушаем события на верхнем слое (cells-layer)
         const canvas = document.getElementById('cells-layer');
         
         const handleInput = (clientX, clientY) => {
@@ -118,14 +120,54 @@ class Game {
 
         canvas.addEventListener('touchend', () => { isDrawing = false; });
 
-        // --- РЕСАЙЗ ОКНА (DEBOUNCE 100ms) ---
         let resizeTimeout;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 this.renderer.resize();
-            }, 100); // Задержка 100мс
+            }, 100);
         });
+    }
+
+    updateGenerationColors(val) {
+        // 0: Blue, 1: Red, 2: Green (Excluded), 3: Purple
+        let tribes = [];
+        switch(val) {
+            case 'rb': tribes = [1, 0]; break; // Red & Blue
+            case 'rp': tribes = [1, 3]; break; // Red & Purple
+            case 'bp': tribes = [0, 3]; break; // Blue & Purple
+            case 'rbp': tribes = [1, 0, 3]; break; // Red & Blue & Purple
+            default: tribes = [1, 0];
+        }
+        this.grid.setGenerationTribes(tribes);
+    }
+
+    takeScreenshot() {
+        // Создаем временный канвас для объединения слоев
+        const canvas = document.createElement('canvas');
+        const w = this.renderer.gridCanvas.width;
+        const h = this.renderer.gridCanvas.height;
+        
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // 1. Рисуем фон (так как grid-layer может быть прозрачным или оптимизированным)
+        ctx.fillStyle = this.renderer.colors.bg;
+        ctx.fillRect(0, 0, w, h);
+
+        // 2. Рисуем сетку
+        ctx.drawImage(this.renderer.gridCanvas, 0, 0);
+
+        // 3. Рисуем клетки
+        ctx.drawImage(this.renderer.cellsCanvas, 0, 0);
+
+        // 4. Скачиваем
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.download = `hex-life-${timestamp}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
     }
 
     setTheme(themeName) {
@@ -172,8 +214,6 @@ class Game {
             bgInput.value = '#000000';
             outlineInput.value = '#00ff00';
         }
-        // draw вызывается автоматически внутри setColors -> rebuildStaticOutline, 
-        // но нам нужно обновить и клетки
         this.renderer.draw();
     }
 
@@ -193,14 +233,13 @@ class Game {
             this.lastTs = ts;
             this.accumulator += dt;
             
-            // Защита от "спирали смерти" при переключении вкладок
             if (this.accumulator > 1000) this.accumulator = 1000;
             
             let updated = false;
             while (this.accumulator >= this.speed) {
                 this.grid.update();
                 this.generation++;
-                this.tickCount++; // Считаем тики симуляции
+                this.tickCount++;
                 this.accumulator -= this.speed;
                 updated = true;
             }
@@ -208,10 +247,9 @@ class Game {
             if (updated) {
                 document.getElementById('stats-gen').innerText = `Generation: ${this.generation}`;
                 this.renderer.draw();
-                this.frameCount++; // Считаем кадры отрисовки
+                this.frameCount++;
             }
 
-            // Обновление FPS/TPS раз в секунду
             if (ts - this.lastStatTime >= 1000) {
                 document.getElementById('stats-perf').innerText = `FPS: ${this.frameCount} | TPS: ${this.tickCount}`;
                 this.frameCount = 0;
@@ -252,6 +290,10 @@ class Game {
         this.size = newSize;
         this.grid = new Grid(this.size);
         
+        // При ресайзе восстанавливаем выбранные цвета
+        const colorVal = document.getElementById('gen-colors-select').value;
+        this.updateGenerationColors(colorVal);
+
         this.renderer.grid = this.grid;
         this.renderer.resize(); 
         
@@ -264,7 +306,9 @@ class Game {
             for (let cell of row) {
                 if (cell.isValid && Math.random() < 0.3) {
                     cell.isAlive = 1;
-                    cell.tribe = Math.random() > 0.5 ? 0 : 1;
+                    // Случайный выбор из разрешенных племен
+                    const randIdx = Math.floor(Math.random() * this.grid.generationTribes.length);
+                    cell.tribe = this.grid.generationTribes[randIdx];
                     cell.age = Math.floor(Math.random() * 20);
                 }
             }
@@ -278,7 +322,6 @@ class Game {
     generateSym6() { this.grid.randomizeSym6(); this.renderer.draw(); }
     generateSym32() { this.grid.randomizeSym32(); this.renderer.draw(); }
     generateSym62() { this.grid.randomizeSym62(); this.renderer.draw(); }
-    generatePurpleSym3() { this.grid.randomizePurpleSym3(); this.renderer.draw(); }
 }
 
 const game = new Game();

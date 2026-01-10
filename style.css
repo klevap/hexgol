@@ -228,3 +228,11 @@ input[type="color"] {
         border-bottom: 2px solid var(--border-color);
     }
 }
+
+#btn-screenshot {
+    background: #34495e;
+    color: #fff;
+}
+#btn-screenshot:hover {
+    background: #2c3e50;
+}

@@ -2,6 +2,10 @@ class Grid {
     constructor(size) {
         this.size = size;
         this.cells = [];
+        
+        // По умолчанию: Синие (0) и Красные (1)
+        this.generationTribes = [0, 1]; 
+
         this.initGrid();
     }
 
@@ -38,8 +42,6 @@ class Grid {
         return null;
     }
 
-    // Связывает клетки друг с другом в строгом порядке ПО ЧАСОВОЙ СТРЕЛКЕ
-    // Это важно для расчета "Специальной суммы" (левый/правый сосед)
     linkNeighbors() {
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
@@ -47,30 +49,19 @@ class Grid {
                 if (!cell.isValid) continue;
 
                 let neighbors = [];
-                
-                // Определение координат соседей по часовой стрелке, начиная с Top-Left
-                // Координаты зависят от четности строки (Offset coordinates)
                 let candidates = [];
 
                 if (row % 2 === 0) {
-                    // Четная строка
                     candidates = [
-                        {r: row - 1, c: col - 1}, // Top-Left
-                        {r: row - 1, c: col},     // Top-Right
-                        {r: row,     c: col + 1}, // Right
-                        {r: row + 1, c: col},     // Bottom-Right
-                        {r: row + 1, c: col - 1}, // Bottom-Left
-                        {r: row,     c: col - 1}  // Left
+                        {r: row - 1, c: col - 1}, {r: row - 1, c: col},
+                        {r: row,     c: col + 1}, {r: row + 1, c: col},
+                        {r: row + 1, c: col - 1}, {r: row,     c: col - 1}
                     ];
                 } else {
-                    // Нечетная строка
                     candidates = [
-                        {r: row - 1, c: col},     // Top-Left
-                        {r: row - 1, c: col + 1}, // Top-Right
-                        {r: row,     c: col + 1}, // Right
-                        {r: row + 1, c: col + 1}, // Bottom-Right
-                        {r: row + 1, c: col},     // Bottom-Left
-                        {r: row,     c: col - 1}  // Left
+                        {r: row - 1, c: col},     {r: row - 1, c: col + 1},
+                        {r: row,     c: col + 1}, {r: row + 1, c: col + 1},
+                        {r: row + 1, c: col},     {r: row,     c: col - 1}
                     ];
                 }
 
@@ -80,7 +71,6 @@ class Grid {
                         neighbors.push(n);
                     }
                 }
-                
                 cell.neighbors = neighbors;
             }
         }
@@ -99,18 +89,13 @@ class Grid {
         const size = this.size;
         const cells = this.cells;
         
-        // 1. Рассчитываем следующее состояние
         for (let row = 0; row < size; row++) {
             const rowArr = cells[row];
             for (let col = 0; col < size; col++) {
-                const cell = rowArr[col];
-                if (cell.isValid) {
-                    cell.calcNextState();
-                }
+                if (rowArr[col].isValid) rowArr[col].calcNextState();
             }
         }
         
-        // 2. Применяем состояние
         let hasLife = false;
         for (let row = 0; row < size; row++) {
             const rowArr = cells[row];
@@ -135,13 +120,23 @@ class Grid {
         }
     }
 
+    setGenerationTribes(tribesArray) {
+        this.generationTribes = tribesArray;
+    }
+
+    // Вспомогательный метод для получения ID племени из индекса
+    getTribe(index) {
+        return this.generationTribes[index % this.generationTribes.length];
+    }
+
     // =====================
     // ГЕНЕРАТОРЫ СИММЕТРИЙ
     // =====================
 
     randomizeSym2() {
         this.clear();
-        let c = 0;
+        // c - это индекс в массиве generationTribes
+        let c = 0; 
         let h = Math.floor(this.size / 2);
         
         for(let i = 0; i < this.size; i++) {
@@ -151,13 +146,15 @@ class Grid {
 
                 if(num < 0.4) {
                     alive = 1;
-                    c = (c > 0) ? 0 : 1;
+                    // Переключаем цвет
+                    c = (c + 1) % this.generationTribes.length;
+                    // Сброс к первому цвету с некоторой вероятностью
                     if(num > 0.35) c = 0;
                 }
 
                 if(alive) {
                     age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
+                    tribe = this.getTribe(c);
                 }
 
                 let k = (i % 2 === 0) ? 2 * h - j : 2 * h - j - 1;
@@ -170,7 +167,7 @@ class Grid {
 
     randomizeSym3() {
         this.clear();
-        let c = Math.floor(1.99 * Math.random());
+        let c = Math.floor(Math.random() * this.generationTribes.length);
         let c2 = c;
         let d = Math.floor(2.99 * Math.random());
         let h = Math.floor(this.size / 2);
@@ -181,22 +178,22 @@ class Grid {
                 if(Math.random() < 0.55) {
                     alive = 1;
                     if(i % 4 - d === 0 || j % 3 === 0)
-                        c = (c > 0) ? 0 : 1;
+                        c = (c + 1) % this.generationTribes.length;
                 }
                 if(alive) {
                     age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
+                    tribe = this.getTribe(c);
                 }
 
                 let alive2 = 0, tribe2 = 0, age2 = 0;
                 if(Math.random() < 0.55) {
                     alive2 = 1;
                     if(i % 3 === 0 || j % 3 + d === 0)
-                        c2 = (c2 > 0) ? 0 : 1;
+                        c2 = (c2 + 1) % this.generationTribes.length;
                 }
                 if(alive2) {
                     age2 = Math.floor(1 + 19 * Math.random());
-                    tribe2 = c2;
+                    tribe2 = this.getTribe(c2);
                 }
 
                 let a = h - i + Math.floor(j / 2);
@@ -237,13 +234,13 @@ class Grid {
                 let num = Math.random();
                 if(num < 0.45) {
                     alive = 1;
-                    c = (c > 0) ? 0 : 1;
+                    c = (c + 1) % this.generationTribes.length;
                     if(num > 0.4) c = 0;
                 }
 
                 if(alive) {
                     age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
+                    tribe = this.getTribe(c);
                 }
 
                 let k = (i % 2 === 0) ? 2 * h - j : 2 * h - j - 1;
@@ -270,18 +267,19 @@ class Grid {
                 if(num < 0.55) {
                     alive = 1;
                     if(h > 10) {
-                        c = (c > 0) ? 0 : 1;
+                        c = (c + 1) % this.generationTribes.length;
                         if(num > 0.45) c = 0;
                     } else {
-                        if(num2 > 0.6666) c = 3;
-                        else if(num2 > 0.3333) c = 1;
-                        else c = 0;
+                        // Логика для малых размеров или шума
+                        if(num2 > 0.6666) c = 2; // index 2
+                        else if(num2 > 0.3333) c = 1; // index 1
+                        else c = 0; // index 0
                     }
                 }
 
                 if(alive) {
                     age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
+                    tribe = this.getTribe(c);
                 }
 
                 let a = h - i + Math.floor(j / 2);
@@ -325,10 +323,10 @@ class Grid {
                 if(num < 0.55) {
                     alive = 1;
                     if(h > 10) {
-                        c = (c > 0) ? 0 : 1;
+                        c = (c + 1) % this.generationTribes.length;
                         if(num > 0.45) c = 0;
                     } else {
-                        if(num2 > 0.6666) c = 3;
+                        if(num2 > 0.6666) c = 2;
                         else if(num2 > 0.3333) c = 1;
                         else c = 0;
                     }
@@ -336,7 +334,7 @@ class Grid {
 
                 if(alive) {
                     age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
+                    tribe = this.getTribe(c);
                 }
 
                 let a = h - i + Math.floor(j / 2);
@@ -384,10 +382,10 @@ class Grid {
                 if(num < 0.55) {
                     alive = 1;
                     if(h > 10) {
-                        c = (c > 0) ? 0 : 1;
+                        c = (c + 1) % this.generationTribes.length;
                         if(num > 0.45) c = 0;
                     } else {
-                        if(num2 > 0.6666) c = 3;
+                        if(num2 > 0.6666) c = 2;
                         else if(num2 > 0.3333) c = 1;
                         else c = 0;
                     }
@@ -395,7 +393,7 @@ class Grid {
 
                 if(alive) {
                     age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
+                    tribe = this.getTribe(c);
                 }
 
                 let a = h - i + Math.floor(j / 2);
@@ -445,64 +443,6 @@ class Grid {
                 a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
                 b_sym = 2 * h - b;
                 this.setCell(b_sym, a_sym, alive, tribe, age);
-            }
-        }
-    }
-
-    randomizePurpleSym3() {
-        this.clear();
-        let c = Math.floor(1.99 * Math.random());
-        let c2 = c;
-        let d = Math.floor(2.99 * Math.random());
-        let h = Math.floor(this.size / 2);
-
-        for(let i = 0; i < h + 1; i++) {
-            for(let j = 0; j < i + 1; j++) {
-                let alive = 0, tribe = 0, age = 0;
-                if(Math.random() < 0.55) {
-                    alive = 1;
-                    if(i % 4 - d === 0 || j % 3 === 0)
-                        c = (c > 0) ? 0 : 3; 
-                }
-                if(alive) {
-                    age = Math.floor(1 + 19 * Math.random());
-                    tribe = c;
-                }
-
-                let alive2 = 0, tribe2 = 0, age2 = 0;
-                if(Math.random() < 0.55) {
-                    alive2 = 1;
-                    if(i % 3 === 0 || j % 3 + d === 0)
-                        c2 = (c2 > 0) ? 0 : 1;
-                }
-                if(alive2) {
-                    age2 = Math.floor(1 + 19 * Math.random());
-                    tribe2 = c2;
-                }
-
-                let a = h - i + Math.floor(j / 2);
-                let b = h - j;
-                this.setCell(b, a, alive, tribe, age);
-
-                let a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
-                let b_sym = 2 * h - b;
-                this.setCell(b_sym, a_sym, alive2, tribe2, age2);
-
-                a = h + i - Math.floor((i - j + 1) / 2);
-                b = h - i + j;
-                this.setCell(b, a, alive, tribe, age);
-
-                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
-                b_sym = 2 * h - b;
-                this.setCell(b_sym, a_sym, alive2, tribe2, age2);
-
-                a = h - j + Math.floor(i / 2);
-                b = h + i;
-                this.setCell(b, a, alive, tribe, age);
-
-                a_sym = (b % 2 === 0) ? 2 * h - a : 2 * h - 1 - a;
-                b_sym = 2 * h - b;
-                this.setCell(b_sym, a_sym, alive2, tribe2, age2);
             }
         }
     }
